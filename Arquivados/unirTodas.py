@@ -2,85 +2,42 @@ from PIL import Image
 import os
 import re
 
-pasta_imagens = "semSobras"
-pasta_saida = "paginas_combinadas"
-
+pasta_imagens = "Ultimas"
+pasta_saida = "contatenadas"
 os.makedirs(pasta_saida, exist_ok=True)
 
-# Função para extrair o número da página
-def extrair_numero(nome_arquivo):
-    match = re.search(r'pagina_enem_(\d+)_', nome_arquivo)
-    if match:
-        return int(match.group(1))
-    return 0
+# Função para extrair o número da página e ordenar corretamente
+def get_sort_key(nome_arquivo):
+    # Extrai o número da página
+    numero = int(re.search(r'pagina_enem_(\d+)_', nome_arquivo).group(1))
+    # Define a ordem: esquerda primeiro (0), depois direita (1)
+    lado = 0 if 'esquerda' in nome_arquivo else 1
+    return (numero, lado)
 
-# Coletar todas as imagens
-imagens_esquerda = []
-imagens_direita = []
+# Pegar e ordenar as imagens corretamente
+arquivos = [f for f in os.listdir(pasta_imagens) if f.endswith('.png')]
+arquivos.sort(key=get_sort_key)
 
-for nome_arquivo in os.listdir(pasta_imagens):
-    if nome_arquivo.lower().endswith(('.png', '.jpg', '.jpeg')):
-        if 'esquerda' in nome_arquivo.lower():
-            imagens_esquerda.append(nome_arquivo)
-        elif 'direita' in nome_arquivo.lower():
-            imagens_direita.append(nome_arquivo)
+# Abrir todas as imagens na ordem correta
+imagens = []
+for arquivo in arquivos:
+    caminho = os.path.join(pasta_imagens, arquivo)
+    imagens.append(Image.open(caminho))
+    print(f"Adicionando: {arquivo}")  # Para verificar a ordem
 
-# Ordenar as imagens pelo número da página
-imagens_esquerda.sort(key=extrair_numero)
-imagens_direita.sort(key=extrair_numero)
+# Encontrar a largura máxima
+largura_max = max(img.width for img in imagens)
 
-# Verificar se temos o mesmo número de páginas esquerda e direita
-if len(imagens_esquerda) != len(imagens_direita):
-    print(f"Aviso: Número diferente de páginas esquerda ({len(imagens_esquerda)}) e direita ({len(imagens_direita)})")
+# Concatenar verticalmente
+altura_total = sum(img.height for img in imagens)
+imagem_final = Image.new('RGB', (largura_max, altura_total))
 
-# Combinar as páginas na ordem: direita, esquerda, direita, esquerda...
-imagens_combinadas = []
+y = 0
+for img in imagens:
+    imagem_final.paste(img, (0, y))
+    y += img.height
 
-for i in range(min(len(imagens_esquerda), len(imagens_direita))):
-    # Adicionar direita primeiro
-    imagens_combinadas.append(imagens_direita[i])
-    # Adicionar esquerda depois
-    imagens_combinadas.append(imagens_esquerda[i])
-
-# Se houver páginas extras de algum tipo, adicionar no final
-if len(imagens_esquerda) > len(imagens_direita):
-    imagens_combinadas.extend(imagens_esquerda[len(imagens_direita):])
-elif len(imagens_direita) > len(imagens_esquerda):
-    imagens_combinadas.extend(imagens_direita[len(imagens_esquerda):])
-
-# Combinar todas as imagens verticalmente
-imagens_abertas = []
-largura_maxima = 0
-altura_total = 0
-
-for nome_arquivo in imagens_combinadas:
-    caminho_imagem = os.path.join(pasta_imagens, nome_arquivo)
-    img = Image.open(caminho_imagem)
-    imagens_abertas.append(img)
-    
-    # Atualizar dimensões máximas
-    largura_maxima = max(largura_maxima, img.width)
-    altura_total += img.height
-
-# Criar imagem final
-imagem_final = Image.new('RGB', (largura_maxima, altura_total))
-
-# Colar as imagens uma em cima da outra
-y_offset = 0
-for img in imagens_abertas:
-    # Centralizar horizontalmente se necessário
-    x_offset = (largura_maxima - img.width) // 2
-    imagem_final.paste(img, (x_offset, y_offset))
-    y_offset += img.height
-
-# Salvar a imagem combinada
-caminho_final = os.path.join(pasta_saida, "enem_completo.png")
-imagem_final.save(caminho_final)
-
-print(f"Combinação concluída! {len(imagens_combinadas)} páginas combinadas.")
-print(f"Imagem salva como: {caminho_final}")
-
-# Mostrar a ordem das páginas combinadas
-print("\nOrdem das páginas combinadas:")
-for i, nome_arquivo in enumerate(imagens_combinadas, 1):
-    print(f"{i}. {nome_arquivo}")
+# Salvar
+imagem_final.save(os.path.join(pasta_saida, 'todas_juntas.png'))
+print("Imagens concatenadas na ordem correta!")
+print(f"Ordem dos arquivos: {arquivos}")
